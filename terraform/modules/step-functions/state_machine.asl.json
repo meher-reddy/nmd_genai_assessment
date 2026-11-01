@@ -9,6 +9,15 @@
         "FunctionName": "${preprocess_arn}",
         "Payload.$": "$"
       },
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException", "Lambda.TooManyRequestsException"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2,
+          "JitterStrategy": "FULL"
+        }
+      ],
       "ResultPath": "$.preprocess_result",
       "ResultSelector": {
         "document_id.$": "$.Payload.document_id",
@@ -28,6 +37,22 @@
         "FunctionName": "${classify_arn}",
         "Payload.$": "$.preprocess_result"
       },
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException", "Lambda.TooManyRequestsException"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2,
+          "JitterStrategy": "FULL"
+        },
+        {
+          "ErrorEquals": ["ThrottlingException", "ServiceUnavailableException"],
+          "IntervalSeconds": 5,
+          "MaxAttempts": 4,
+          "BackoffRate": 2,
+          "JitterStrategy": "FULL"
+        }
+      ],
       "ResultPath": "$.classify_result",
       "ResultSelector": {
         "document_type.$": "$.Payload.document_type",
@@ -40,8 +65,24 @@
       "Resource": "arn:aws:states:::lambda:invoke",
       "Parameters": {
         "FunctionName": "${extract_arn}",
-        "Payload.$": "$.preprocess_result"
+        "Payload.$": "States.JsonMerge($.preprocess_result, $.classify_result, false)"
       },
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException", "Lambda.TooManyRequestsException"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2,
+          "JitterStrategy": "FULL"
+        },
+        {
+          "ErrorEquals": ["ThrottlingException", "ServiceUnavailableException"],
+          "IntervalSeconds": 5,
+          "MaxAttempts": 4,
+          "BackoffRate": 2,
+          "JitterStrategy": "FULL"
+        }
+      ],
       "ResultPath": "$.extract_result",
       "ResultSelector": {
         "extracted_fields.$": "$.Payload.extracted_fields",
@@ -56,6 +97,15 @@
         "FunctionName": "${aggregate_arn}",
         "Payload.$": "$"
       },
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException", "Lambda.TooManyRequestsException"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2,
+          "JitterStrategy": "FULL"
+        }
+      ],
       "ResultSelector": {
         "document_id.$": "$.Payload.document_id",
         "document_type.$": "$.Payload.document_type",
