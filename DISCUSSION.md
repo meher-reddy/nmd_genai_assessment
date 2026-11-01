@@ -13,6 +13,7 @@ Aim for 2-4 sentences per answer unless otherwise noted. We value clarity and de
 If you could not complete the assessment or got stuck at any point, what went wrong and what did you try to troubleshoot?
 
 **Your answer:**
+
 - I completed the assessment. All four sample documents ran through the pipeline and produced results.
 - My home DNS blocked amazonaws.com, so the AWS CLI and Docker could not reach AWS. I checked it against Google’s DNS and switched my machine to public DNS.
 - The Lambda functions use a container image, and AWS will not create them before the image exists. So I created the ECR repository first, pushed the image, and then applied the rest of the Terraform.
@@ -28,6 +29,7 @@ If you could not complete the assessment or got stuck at any point, what went wr
 Paste the S3 URI to one of your result files (e.g., `s3://nmd-genai-<your-name>-documents/results/<document-id>.json`).
 
 **Your answer:**
+
 s3://nmd-genai-meher-bajjuri-documents/results/drug-approval.json (all four samples have results under results/).
 
 
@@ -36,6 +38,7 @@ s3://nmd-genai-meher-bajjuri-documents/results/drug-approval.json (all four samp
 How would you improve the classification prompt to handle ambiguous documents that could match multiple types? What techniques would you use to ensure consistent JSON output from the LLM?
 
 **Your answer:**
+
 My prompt describes each document type by its purpose with an example, tells the model to judge by the main purpose of the document, and gives it an "unknown" option so it does not have to guess. To handle documents that fit more than one type, I would add a few short examples of borderline cases, let the model return a main type plus other possible types, and send results with low confidence to a person for review. For consistent JSON, I give the model the exact format to reply in with a fixed list of allowed values, and my code checks every value and falls back to "unknown" if anything is wrong. This model does not accept a temperature setting, so in production I would also use Bedrock tool use with a JSON schema, which makes the API enforce the format.
 
 
@@ -44,6 +47,7 @@ My prompt describes each document type by its purpose with an example, tells the
 How would you handle Bedrock throttling (429 errors) in a production pipeline? What retry strategy would you implement, and how would it interact with Step Functions' built-in error handling?
 
 **Your answer:**
+
 I let the Bedrock throttling error pass up from the Lambda instead of catching it, so Step Functions can retry the step. The Retry I added on Classify and Extract waits 5, 10, 20 and then 40 seconds between attempts, with random jitter so that many runs do not all retry at the same moment, and errors caused by bugs are not retried at all. The boto3 client also retries a few times inside the Lambda, so I would keep that number small to avoid stacking retries and running past the Lambda timeout. In production I would add a Catch that sends a document to a dead-letter queue after the last retry, and limit how many documents run at once so the pipeline stays under the Bedrock quota.
 
 
@@ -81,6 +85,7 @@ Consider security, error handling, observability, testing, CI/CD, and infrastruc
 A new "validate" Lambda needs to be added to the pipeline between Extract and Aggregate. It will validate the extracted fields against a schema before writing results. List every file you'd need to change and what you'd add to each.
 
 **Your answer:**
+
 - Add src/tasks/validate.py with the validation logic, and tests/test_validate.py with its tests.
 - Add src/lambdas/validate/handler.py as the entry point. The Dockerfile already copies all of src/, so it does not need to change.
 - In terraform/modules/lambda/main.tf, add a log group and a new Lambda function for validate. It uses the same image, with the command set to lambdas.validate.handler.handler.
@@ -134,6 +139,7 @@ List the key points you'd convey to a client's VP of Engineering who approved th
 The pipeline trusts the LLM's JSON output without validation. How would you validate extracted fields against a schema? How would you handle extraction failures — retry, dead-letter queue, or flag for human review? What's your strategy?
 
 **Your answer:**
+
 I would write a schema for each document type with pydantic, which the project already uses, to check required fields, types, date formats and the CVE ID pattern. I would also check that each extracted value actually appears in the source text, which is how I confirmed the "Critical" severity in my own run. If a result fails, the pipeline retries once with the errors added to the prompt, and if it still fails or the confidence is low, it saves the result as "needs review" and sends it to a review queue instead of dropping it. Errors that keep failing after all retries go to a dead-letter queue so they can be run again later.
 
 ### DE-2. Pipeline at Scale
@@ -141,6 +147,7 @@ I would write a schema for each document type with pydantic, which the project a
 This processes one document per Step Functions execution. Design a batch pipeline that handles 100,000 documents per day. What changes to the Step Functions architecture? Where would you parallelize, and where are the bottlenecks?
 
 **Your answer:**
+
 From my runs, each document uses about 2,100 input and 280 output tokens, so 100,000 documents a day is about 210 million input and 28 million output tokens, and the Bedrock quota becomes the main limit. I would put an SQS queue in front of the workflow to absorb bursts, and process documents in batches with a Step Functions Distributed Map, using its concurrency limit to stay under that quota. I would also pass S3 keys between steps instead of the document text, because Step Functions has a 256 KB limit on the data passed between steps. To cut cost, I would use Express workflows, send only the start of each document to Classify, and use Bedrock batch inference for work that is not urgent.
 
 
@@ -149,6 +156,7 @@ From my runs, each document uses about 2,100 input and 280 output tokens, so 100
 How would you monitor this pipeline in production? What metrics, alerts, and dashboards would you build? A downstream team also needs to know which model version and prompt version produced each extraction. How would you track that lineage?
 
 **Your answer:**
+
 I would build a CloudWatch dashboard that shows runs started, succeeded and failed, time per step, Bedrock throttling, token use, confidence scores and the share of "unknown" results. Alarms would go off when failures rise, when the dead-letter queue is not empty, when daily cost passes a budget, or when the share of "unknown" results jumps, since that often means a new kind of document is arriving. For lineage, each result would store the model ID, the prompt version, the schema version, the code version and the source file version, along with the processed time it already has. Keeping these in each result and in a DynamoDB table lets the downstream team find and rerun exactly the documents a prompt change affected.
 
 
@@ -157,4 +165,5 @@ I would build a CloudWatch dashboard that shows runs started, succeeded and fail
 If the same document is uploaded twice, the pipeline currently processes it again at full cost. How would you implement caching or deduplication? Consider where in the pipeline to check, what to use as a cache key, and the tradeoffs of different storage options (DynamoDB, S3 metadata, Elasticache).
 
 **Your answer:**
+
 I would check for a duplicate right after Preprocess, before any Bedrock call, because the model calls are where the cost is. The cache key would be a SHA-256 hash of the document content plus the prompt version and model ID, so a renamed copy is still caught and a prompt change starts fresh. I would store it in DynamoDB, because a conditional write checks and saves the key in one step, lookups are fast, and old entries can expire on their own. S3 metadata is cheaper but slower and harder to search, and ElastiCache is the fastest but adds a cluster to run and is more than this volume needs.
