@@ -27,7 +27,6 @@ def invoke_claude(model_id: str, prompt: str, *, system: str | None = None, max_
     body = {
         "anthropic_version": ANTHROPIC_VERSION,
         "max_tokens": max_tokens,
-        "temperature": 0,
         "messages": [{"role": "user", "content": prompt}],
     }
     if system:

@@ -38,7 +38,7 @@ class TestInvokeClaude:
         body = json.loads(kwargs["body"])
         assert body["anthropic_version"] == "bedrock-2023-05-31"
         assert body["max_tokens"] == 100
-        assert body["temperature"] == 0
+        assert "temperature" not in body
         assert body["system"] == "be brief"
         assert body["messages"] == [{"role": "user", "content": "hello"}]
 
