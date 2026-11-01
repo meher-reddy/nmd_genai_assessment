@@ -1,9 +1,11 @@
 """Lambda handler for document classification."""
 
 import logging
+import os
 
 from tasks.classify import classify_document
 
+logging.getLogger().setLevel(os.environ.get("LOG_LEVEL", "INFO"))
 logger = logging.getLogger(__name__)
 
 

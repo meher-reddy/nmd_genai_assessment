@@ -1,9 +1,11 @@
 """Lambda handler for LLM-based field extraction."""
 
 import logging
+import os
 
 from tasks.extract import extract_fields
 
+logging.getLogger().setLevel(os.environ.get("LOG_LEVEL", "INFO"))
 logger = logging.getLogger(__name__)
 
 

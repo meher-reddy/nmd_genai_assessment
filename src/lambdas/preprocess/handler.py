@@ -1,9 +1,11 @@
 """Lambda handler for document preprocessing."""
 
 import logging
+import os
 
 from tasks.preprocess import preprocess_document
 
+logging.getLogger().setLevel(os.environ.get("LOG_LEVEL", "INFO"))
 logger = logging.getLogger(__name__)
 
 

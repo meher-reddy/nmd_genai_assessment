@@ -1,9 +1,11 @@
 """Lambda handler for aggregating extraction results."""
 
 import logging
+import os
 
 from tasks.aggregate import aggregate_results
 
+logging.getLogger().setLevel(os.environ.get("LOG_LEVEL", "INFO"))
 logger = logging.getLogger(__name__)
 
 
